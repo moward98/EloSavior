@@ -9,7 +9,7 @@ from .models import Summoner
 # Create your views here.
 
 # API Authentication
-auth_token = 'api_key=RGAPI-4fde6270-17f3-4589-9b5e-77e29a80d6bc'
+auth_token = 'api_key=RGAPI-d318574f-2314-41ea-8798-7a1a7a9ffcb2'
 
 # API Call Urls
 summoner_by_name_url = 'https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/'
@@ -151,9 +151,6 @@ def resp(request: HttpRequest, summoner_name: str, base_url=summoner_by_name_url
     
     matches = get_summoner_match_history(summoner_name)
 
-    player_suggestions = get_eligible_participants(matches, summoner_name)
+    player_suggestions = get_eligible_participants(matches, summoner_name)        
 
-    for idx, player in enumerate(player_suggestions):
-        player_return_dict.update({idx: player})
-
-    return render(request, 'simple.html', context=player_return_dict)
+    return render(request, 'simple.html', {"suggestions" : player_suggestions})

@@ -1,3 +1,4 @@
+from array import array
 from asyncio.windows_events import NULL
 from venv import create
 import winsound
@@ -5,11 +6,29 @@ from django.shortcuts import render
 from django.http import HttpRequest, HttpResponse
 import requests
 from .models import Summoner
+from timeit import default_timer as timer
+import asyncio
+from aiohttp import ClientSession
 
 # Create your views here.
 
+class TempSummoner():
+    def __init__(self, summoner_data):
+        self.name = summoner_data['name']
+        self.summoner_id = summoner_data['summoner_id']
+        self.puuid = summoner_data['puuid']
+        self.level = summoner_data['level']
+        self.tier = summoner_data['tier']
+        self.rank = summoner_data['rank']
+        self.lp = summoner_data['lp']
+        self.hotstreak = summoner_data['hotstreak']
+        self.divinity = summoner_data['divinity']
+
+    def __str__(self):
+        return self.name
+
 # API Authentication
-auth_token = 'api_key=RGAPI-d318574f-2314-41ea-8798-7a1a7a9ffcb2'
+auth_token = 'api_key=RGAPI-229900ce-ac20-45e5-a29f-add7f9f9fe99'
 
 # API Call Urls
 summoner_by_name_url = 'https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/'
@@ -28,7 +47,7 @@ allowed_ranks_dict = {
 
 tiers_list = ["I", "II", "III", "IV"]
 
-def create_summoner(summoner_info, summoner_stats):
+def save_summoner(summoner_info, summoner_stats):
 
     games_played = summoner_stats['wins'] + summoner_stats['losses']
     winrate = (summoner_stats['wins']/games_played) * 100
@@ -53,6 +72,32 @@ def create_summoner(summoner_info, summoner_stats):
     )
 
 
+def create_summoner(summoner_info, summoner_stats):
+
+    games_played = summoner_stats['wins'] + summoner_stats['losses']
+    winrate = (summoner_stats['wins']/games_played) * 100
+
+    if games_played<20:
+        divinity=NULL
+    elif winrate>55:
+        divinity=True
+    else:
+        divinity=False
+
+    return(TempSummoner(
+            summoner_data = {
+                'name'          : summoner_info['name'],
+                'level'         : summoner_info['summonerLevel'],
+                'puuid'         : summoner_info['puuid'],
+                'summoner_id'   : summoner_info['id'],
+                'tier'          : summoner_stats['tier'],
+                'rank'          : summoner_stats['rank'],
+                'lp'            : summoner_stats['lp'],
+                'hotstreak'     : summoner_stats['hotstreak'],
+                'divinity'      : divinity
+            }))
+
+
 def get_summoner_stats(summoner_id, base_url=summoner_stats_url, token=auth_token):
     response = requests.get(f'{base_url}{summoner_id}?{token}')
 
@@ -72,8 +117,7 @@ def get_summoner_stats(summoner_id, base_url=summoner_stats_url, token=auth_toke
         return 0
     
 
-# def calc_eligible_ranks(summoner_name: str, ranks_dict=allowed_ranks_dict, tiers_list=tiers_list) -> list:
-
+def calc_eligible_ranks(summoner_name: str, ranks_dict=allowed_ranks_dict, tiers_list=tiers_list) -> list:
 #     summoner = Summoner.objects.get(name=summoner_name)
 
 #     elig_ranks = ranks_dict[summoner.rank]
@@ -85,13 +129,13 @@ def get_summoner_stats(summoner_id, base_url=summoner_stats_url, token=auth_toke
 #         elig_tiers = tiers_list
 
 #     return elig_ranks
+    pass
 
-def get_eligible_participants(match_id_list: list, summoner_name: str, base_url=match_details_url, token=auth_token) -> list:
+
+def get_eligible_participants(match_id_list: array, main_summoner: object, potential_players: array, base_url=match_details_url, token=auth_token) -> array:
     
     player_list = []
     eligible_players = []
-
-    summoner = Summoner.objects.get(name=summoner_name)
 
     #eligible_ranks = calc_eligible_ranks(summoner_name)
 
@@ -101,56 +145,59 @@ def get_eligible_participants(match_id_list: list, summoner_name: str, base_url=
         match_details = response.json()
 
         for player in match_details["info"]['participants']: 
-            if player['summonerName'] != summoner_name:
+            if player['summonerName'] != main_summoner.name:
                 if player['deaths'] == 0:
                     kda = (player['kills']+player['assists'])
                 else:
                     kda = (player['kills']+player['assists']) / player['deaths']
 
-                if kda>2.3:
+                if kda>2.3 and (player['summonerName'] not in eligible_players):
                     player_list.append(player['summonerName']) 
 
-    for player_name in player_list:
-        created = get_create_summoner_info(player_name)
-        if created:
-            player = Summoner.objects.get(name=player_name)
+                    created = get_summoner_info(player['summonerName'], potential_players)
 
-            if player.divinity is not NULL and player.divinity is not summoner.divinity:
-                eligible_players.append(player.name)
+                    if created:
+                        player = potential_players[-1]
 
-    return player_list
+                        if player.divinity is not NULL and player.divinity is not main_summoner.divinity:
+                            eligible_players.append(player.name)
 
+    return eligible_players
 
-def get_summoner_match_history(summoner_name: str, base_url=match_history_ids_url, type='ranked', start='0', count='1', token=auth_token) -> list:
-    summoner = Summoner.objects.get(name=summoner_name)
-    
-    response = requests.get(f'{base_url}{summoner.puuid}/ids?type={type}&start={start}&count={count}&{token}')
+def get_summoner_match_history(summoner_puuid: str, base_url=match_history_ids_url, type='ranked', start='0', count='5', token=auth_token) -> array:
+    response = requests.get(f'{base_url}{summoner_puuid}/ids?type={type}&start={start}&count={count}&{token}')
     match_id_list = response.json()
 
     return match_id_list
 
 
-def get_create_summoner_info(summoner_name: str, base_url=summoner_by_name_url, token=auth_token):
+def get_summoner_info(summoner_name: str, potential_players: array, base_url=summoner_by_name_url, token=auth_token):    
     response = requests.get(f'{base_url}{summoner_name}?{token}')
     if response.status_code == 200:
         summoner_info = response.json()
         summoner_stats = get_summoner_stats(summoner_info['id'])
         if summoner_stats != 0:
-            create_summoner(summoner_info, summoner_stats)
-            return 1
+            if summoner_name not in potential_players:
+                potential_players.append(create_summoner(summoner_info, summoner_stats))
+                return 1
     else: 
         return 0
 
 
 def resp(request: HttpRequest, summoner_name: str, base_url=summoner_by_name_url, token=auth_token) -> HttpResponse:
-    
-    player_return_dict = {}
+    start = timer()
+    potential_players = []
     
     # Create Summoner that made request on site
-    get_create_summoner_info(summoner_name)  
+    get_summoner_info(summoner_name, potential_players)  
+
+    main_summoner = potential_players[0]
     
-    matches = get_summoner_match_history(summoner_name)
+    matches = get_summoner_match_history(main_summoner.puuid)
 
-    player_suggestions = get_eligible_participants(matches, summoner_name)        
+    player_suggestions = get_eligible_participants(matches, main_summoner, potential_players) 
 
+    end = timer() - start
     return render(request, 'simple.html', {"suggestions" : player_suggestions})
+
+

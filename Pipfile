@@ -6,6 +6,9 @@ name = "pypi"
 [packages]
 django = "*"
 requests = "*"
+asyncio = "*"
+aiohttp = "*"
+grequests = "*"
 
 [dev-packages]
 

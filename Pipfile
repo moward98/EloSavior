@@ -9,6 +9,9 @@ requests = "*"
 asyncio = "*"
 aiohttp = "*"
 grequests = "*"
+ratelimit = "*"
+djangorestframework = "*"
+django-cors-headers = "*"
 
 [dev-packages]
 

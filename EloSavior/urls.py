@@ -20,5 +20,5 @@ import RiotAPICalls
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('riot/', include('RiotAPICalls.urls'))
+    path('', include('RiotAPICalls.urls'))
 ]

@@ -1,7 +1,14 @@
-from django.urls import  path
+from django.urls import include, path
+from rest_framework import routers
 from . import views
-from . import old_views
 
+router = routers.DefaultRouter()
+router.register(r'players', views.PlayerViewSet)
+
+
+# Wire up our API using automatic URL routing.
+# Additionally, we include login URLs for the browsable API.
 urlpatterns = [
-    path('<str:summoner_name>/', views.resp, name='get_summoner_info')
+    path('', include(router.urls)),
+    path('api-auth/', include('rest_framework.urls', namespace='rest_framework'))
 ]

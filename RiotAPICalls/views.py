@@ -34,7 +34,7 @@ class TempSummoner():
         return self.name
 
 # API Authentication
-auth_token = 'api_key=RGAPI-f980e60c-ed9a-4821-94ec-851333b63e62'
+auth_token = 'random-string-not-actual-token'
 
 # API Call Urls
 summoner_by_name_url = 'https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/'
